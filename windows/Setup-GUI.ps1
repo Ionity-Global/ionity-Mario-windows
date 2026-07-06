@@ -125,7 +125,7 @@ $anim.Start()
 
 # ---- header ------------------------------------------------------------
 $logo = New-Object System.Windows.Forms.PictureBox
-$logo.Image = [System.Drawing.Image]::FromFile($LogoPng)
+$logo.Image = [System.Drawing.Image]::FromStream([System.IO.MemoryStream][System.IO.File]::ReadAllBytes($LogoPng))  # no file lock
 $logo.SizeMode = 'Zoom'
 $logo.BackColor = [System.Drawing.Color]::Transparent
 $logo.SetBounds(165, 18, 250, 68)

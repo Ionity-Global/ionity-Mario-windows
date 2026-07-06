@@ -73,7 +73,7 @@ function Play-Snd([string]$name) {
 }
 
 # ---- watermark (per-pixel alpha layered window) ------------------------
-$logoImg = [System.Drawing.Image]::FromFile($WmPng)
+$logoImg = [System.Drawing.Image]::FromStream([System.IO.MemoryStream][System.IO.File]::ReadAllBytes($WmPng))  # no file lock
 $W  = [int]$settings.width
 $LH = [int]($W * $logoImg.Height / $logoImg.Width)
 $H  = $LH + 40
