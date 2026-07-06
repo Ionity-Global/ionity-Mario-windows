@@ -13,4 +13,4 @@ Desktop.ini
 
 # local install artifacts
 *.log
-_push.ps1
+_*.ps1

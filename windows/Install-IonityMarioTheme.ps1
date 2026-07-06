@@ -6,15 +6,22 @@
 # =====================================================================
 param(
     [switch]$NoCompanion,   # skip tray app / watermark
-    [switch]$Quiet          # no pauses, no fanfare sound
+    [switch]$Quiet,         # no pauses, no fanfare sound
+    [string]$InstallDir = ''  # custom install location (default: %LOCALAPPDATA%\Ionity\MarioSoundTheme)
 )
 $ErrorActionPreference = 'Stop'
 $SchemeId   = 'IonityMario'
 $SchemeName = 'Ionity Mario'
 $ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot   = Split-Path -Parent $ScriptDir
-$Dest       = Join-Path $env:LOCALAPPDATA 'Ionity\MarioSoundTheme'
+if ([string]::IsNullOrWhiteSpace($InstallDir)) {
+    $InstallDir = Join-Path $env:LOCALAPPDATA 'Ionity\MarioSoundTheme'
+}
+$Dest       = $InstallDir
 $SndDir     = Join-Path $Dest 'sounds'
+# remember install location for uninstaller / companion
+New-Item -Path 'HKCU:\Software\Ionity\MarioSoundTheme' -Force | Out-Null
+Set-ItemProperty -Path 'HKCU:\Software\Ionity\MarioSoundTheme' -Name 'InstallDir' -Value $Dest
 
 Write-Host ''
 Write-Host '  ============================================' -ForegroundColor Cyan
@@ -38,7 +45,7 @@ if (Test-Path (Join-Path $RepoRoot 'sounds')) {   # skipped when re-run from ins
 # default settings (never overwrite user's)
 $SettingsFile = Join-Path $Dest 'settings.json'
 if (-not (Test-Path $SettingsFile)) {
-    @{ watermark = $true; opacity = 55; width = 150; margin = 16 } |
+    @{ watermark = $true; opacity = 55; width = 190; margin = 16 } |
         ConvertTo-Json | Set-Content $SettingsFile -Encoding UTF8
 }
 
@@ -81,12 +88,19 @@ $Map = [ordered]@{
 Write-Host '  [2/5] Backing up current sound scheme...' -ForegroundColor Yellow
 $BackupFile = Join-Path $Dest 'backup.json'
 if (-not (Test-Path $BackupFile)) {
-    $bk = @{ scheme = (Get-ItemProperty 'HKCU:\AppEvents\Schemes' -ErrorAction SilentlyContinue).'(default)'; events = @{} }
+    $prevScheme = (Get-ItemProperty 'HKCU:\AppEvents\Schemes' -ErrorAction SilentlyContinue).'(default)'
+    if ($prevScheme -eq $SchemeId) { $prevScheme = '.Default' }   # never back up ourselves
+    $bk = @{ scheme = $prevScheme; events = @{} }
     foreach ($key in $Map.Keys) {
         $app,$ev = $key -split '\|'
-        $cur = "HKCU:\AppEvents\Schemes\Apps\$app\$ev\.Current"
+        $base = "HKCU:\AppEvents\Schemes\Apps\$app\$ev"
         $val = ''
-        if (Test-Path $cur) { $val = (Get-ItemProperty $cur -ErrorAction SilentlyContinue).'(default)' }
+        if (Test-Path "$base\.Current") { $val = [string](Get-ItemProperty "$base\.Current" -ErrorAction SilentlyContinue).'(default)' }
+        # if a Mario install is already active, back up the Windows default instead
+        if ($val -match 'IonityMario|MarioSoundTheme|\.Windows Mario') {
+            $val = ''
+            if (Test-Path "$base\.Default") { $val = [string](Get-ItemProperty "$base\.Default" -ErrorAction SilentlyContinue).'(default)' }
+        }
         $bk.events[$key] = [string]$val
     }
     $bk | ConvertTo-Json -Depth 4 | Set-Content $BackupFile -Encoding UTF8
@@ -120,8 +134,10 @@ if (-not $NoCompanion) {
     $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     Set-ItemProperty -Path $runKey -Name 'IonityMarioCompanion' `
         -Value "wscript.exe `"$Dest\StartCompanion.vbs`""
-    Get-Process | Where-Object { $_.ProcessName -eq 'powershell' -and $_.MainWindowTitle -eq 'IonityMarioCompanion' } |
-        Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match 'IonityMarioCompanion\.ps1' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Milliseconds 500
     Start-Process wscript.exe -ArgumentList "`"$Dest\StartCompanion.vbs`""
     Write-Host '        Tray app started - Ionity watermark bottom-right (toggle in tray).' -ForegroundColor DarkGray
 } else {

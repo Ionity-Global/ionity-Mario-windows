@@ -4,11 +4,18 @@
 # =====================================================================
 param(
     [switch]$KeepFiles,   # restore Windows sounds but keep companion/files
-    [switch]$Quiet
+    [switch]$Quiet,
+    [string]$InstallDir = ''
 )
 $ErrorActionPreference = 'SilentlyContinue'
 $SchemeId = 'IonityMario'
-$Dest = Join-Path $env:LOCALAPPDATA 'Ionity\MarioSoundTheme'
+if ([string]::IsNullOrWhiteSpace($InstallDir)) {
+    $InstallDir = (Get-ItemProperty 'HKCU:\Software\Ionity\MarioSoundTheme' -ErrorAction SilentlyContinue).InstallDir
+}
+if ([string]::IsNullOrWhiteSpace($InstallDir)) {
+    $InstallDir = Join-Path $env:LOCALAPPDATA 'Ionity\MarioSoundTheme'
+}
+$Dest = $InstallDir
 $BackupFile = Join-Path $Dest 'backup.json'
 
 Write-Host ''
@@ -65,6 +72,7 @@ if (-not $KeepFiles) {
     } else {
         Remove-Item $Dest -Recurse -Force
     }
+    Remove-Item 'HKCU:\Software\Ionity\MarioSoundTheme' -Recurse -Force
     Write-Host '  Companion removed, files cleaned up.' -ForegroundColor Green
 }
 
