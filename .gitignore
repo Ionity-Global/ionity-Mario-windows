@@ -1,0 +1,16 @@
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# local install artifacts
+*.log
+_push.ps1

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ionity Mario Sound Theme</title>
+<meta name="author" content="Johan Wilhelm van Antwerp">
+<meta name="description" content="Super Mario system-sound theme for Windows, Linux, macOS & Android — by Ionity. Building Tomorrow, Today.">
+<meta name="keywords" content="Ionity, Mario, sound theme, Windows sounds, AEDI, Antwerp Designs">
+<meta name="theme-color" content="#00c6ff">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root { --cyan:#00c6ff; --dark:#0d1b2a; --dark2:#16213e; --red:#e94560; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--dark); color:#eaf6ff; font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+header { text-align:center; padding:36px 16px 12px; }
+header img { width:130px; filter:drop-shadow(0 0 18px rgba(0,198,255,.45)); }
+h1 { font-size:1.6rem; margin:10px 0 4px; letter-spacing:.5px; }
+h1 span { color:var(--cyan); }
+.tag { color:#8fb8d8; font-size:.85rem; }
+main { max-width:960px; margin:0 auto; padding:18px; }
+h2 { color:var(--cyan); font-size:1.05rem; margin:26px 0 10px; border-bottom:1px solid #1e3a5f; padding-bottom:6px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; }
+button.snd { background:var(--dark2); color:#eaf6ff; border:1px solid #1e3a5f; border-radius:10px;
+  padding:14px 8px; cursor:pointer; font-size:.85rem; transition:.15s; }
+button.snd:hover { border-color:var(--cyan); transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,198,255,.25); }
+button.snd:active { transform:scale(.96); background:var(--red); }
+.dl { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
+.dl a { display:block; background:linear-gradient(135deg,#0f3460,#16213e); border:1px solid #1e3a5f;
+  padding:14px; border-radius:10px; color:#eaf6ff; text-decoration:none; font-size:.9rem; }
+.dl a b { color:var(--cyan); display:block; margin-bottom:4px; }
+.dl a:hover { border-color:var(--cyan); }
+table { width:100%; border-collapse:collapse; font-size:.83rem; }
+td,th { padding:6px 8px; border-bottom:1px solid #1e3a5f; text-align:left; }
+th { color:var(--cyan); }
+#wm { position:fixed; right:16px; bottom:16px; width:110px; opacity:.55; pointer-events:none; z-index:99; }
+.toggle { position:fixed; left:14px; bottom:14px; font-size:.75rem; color:#8fb8d8; background:var(--dark2);
+  border:1px solid #1e3a5f; border-radius:20px; padding:6px 12px; cursor:pointer; z-index:100; }
+footer { text-align:center; color:#5d80a0; font-size:.75rem; padding:30px 10px; }
+footer a { color:var(--cyan); text-decoration:none; }
+body.star { animation:star 1.2s linear infinite; }
+@keyframes star { 0%{background:#0d1b2a} 25%{background:#3a0d2a} 50%{background:#0d2a1b} 75%{background:#2a250d} 100%{background:#0d1b2a} }
+.note { background:#0f3460; border-left:3px solid var(--cyan); padding:10px 12px; border-radius:6px; font-size:.82rem; color:#cfe8ff; margin:10px 0; }
+</style>
+</head>
+<body>
+<header>
+  <img src="icons/icon-192.png" alt="Ionity">
+  <h1>IONITY <span>×</span> SUPER MARIO <span>SOUND THEME</span></h1>
+  <div class="tag">Building Tomorrow, Today. · ionity.today · Try the Konami code ;)</div>
+</header>
+<main>
+  <h2>🔊 Soundboard — tap to play</h2>
+  <div class="grid" id="board"></div>
+
+  <h2>⬇ Get it on your system</h2>
+  <div class="dl">
+    <a href="https://github.com/Ionity-Global/ionity-Mario-windows" target="_blank"><b>🪟 Windows</b>INSTALL.bat — full sound scheme, tray app, watermark, 1-UP Pomodoro</a>
+    <a href="https://github.com/Ionity-Global/ionity-Mario-windows" target="_blank"><b>🐧 Linux</b>install.sh — freedesktop/GNOME sound theme + watermark</a>
+    <a href="https://github.com/Ionity-Global/ionity-Mario-windows" target="_blank"><b>🍎 macOS</b>install.sh — 23 Mario alert sounds</a>
+    <a href="https://github.com/Ionity-Global/ionity-Mario-windows" target="_blank"><b>🤖 Android</b>APK — ringtone / notification / alarm + overlay watermark</a>
+  </div>
+  <div class="note">Browsers can't change OS system sounds — this webapp is the preview & soundboard. Use the installers above for the real thing. Install this page as a PWA for an offline soundboard.</div>
+
+  <h2>🗺 What replaces what (Windows)</h2>
+  <table>
+    <tr><th>Windows event</th><th>Mario sound</th></tr>
+    <tr><td>Notification / Info</td><td>Coin</td></tr>
+    <tr><td>Warning</td><td>Power-up appears</td></tr>
+    <tr><td>Critical error</td><td>Bowser fire</td></tr>
+    <tr><td>App crash</td><td>Bowser falls</td></tr>
+    <tr><td>New mail</td><td>1-UP</td></tr>
+    <tr><td>Minimize / Maximize</td><td>Pipe / Super jump</td></tr>
+    <tr><td>USB connect / disconnect</td><td>Power-up / Pipe</td></tr>
+    <tr><td>Empty recycle bin</td><td>Break block</td></tr>
+    <tr><td>Low / critical battery</td><td>Hurry-up jingle / Mario dies</td></tr>
+    <tr><td>Sign-in / Shutdown</td><td>Power-up / Game Over</td></tr>
+  </table>
+</main>
+
+<img id="wm" src="icons/icon-192.png" alt="">
+<button class="toggle" id="wmToggle">Ionity watermark: ON</button>
+
+<footer>
+  © 2018–2026 <a href="https://www.ionity.today" target="_blank">Antwerp Designs | Ionity (Pty) Ltd</a> · All rights reserved · TM²<br>
+  Mario sounds © Nintendo — non-commercial fan project, personal use only.
+</footer>
+
+<script>
+const SOUNDS = ["1-up","bowserfalls","bowserfire","breakblock","bump","coin","fireball","fireworks",
+"flagpole","gameover","jump-small","jump-super","kick","mariodie","pause","pipe","powerup",
+"powerup_appears","stage_clear","stomp","vine","warning","world_clear"];
+const board = document.getElementById('board');
+const nice = s => s.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+SOUNDS.forEach(s=>{
+  const b=document.createElement('button');
+  b.className='snd'; b.textContent=nice(s);
+  b.onclick=()=>new Audio('sounds/smb_'+s+'.wav').play();
+  board.appendChild(b);
+});
+// watermark toggle (mirrors desktop companion setting)
+const wm=document.getElementById('wm'), tg=document.getElementById('wmToggle');
+let on=localStorage.getItem('ionity_wm')!=='off';
+const paint=()=>{wm.style.display=on?'block':'none';tg.textContent='Ionity watermark: '+(on?'ON':'OFF');};
+tg.onclick=()=>{on=!on;localStorage.setItem('ionity_wm',on?'on':'off');new Audio('sounds/smb_coin.wav').play();paint();};
+paint();
+// Konami code → STAR MODE
+const K=[38,38,40,40,37,39,37,39,66,65]; let ki=0;
+addEventListener('keydown',e=>{
+  ki=(e.keyCode===K[ki])?ki+1:0;
+  if(ki===K.length){ki=0;document.body.classList.add('star');
+    new Audio('sounds/smb_1-up.wav').play();
+    setTimeout(()=>new Audio('sounds/smb_fireworks.wav').play(),900);
+    setTimeout(()=>document.body.classList.remove('star'),6000);}
+});
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.IonityMario" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:colorBackground">#0d1b2a</item>
+        <item name="colorPrimary">#00c6ff</item>
+        <item name="colorSecondary">#e94560</item>
+    </style>
+</resources>
