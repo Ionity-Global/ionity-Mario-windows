@@ -57,6 +57,85 @@ public static class IonWin32 {
 }
 "@
 
+# ---- Mario Everywhere: global click & window-action sounds ------------
+# Windows 10/11 no longer fires Minimize/Maximize/Close/click scheme events,
+# so we hook them ourselves (low-level mouse hook + WinEvents).
+Add-Type @"
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+public static class IonHooks {
+    public static string SndDir = "";
+    public static bool Clicks = true, WinSounds = true, Muted = false;
+
+    delegate IntPtr MouseProc(int code, IntPtr w, IntPtr l);
+    delegate void WinEventProc(IntPtr hook, uint ev, IntPtr hwnd, int idObj, int idChild, uint thread, uint time);
+    static MouseProc mp = MouseCb;          // keep delegates alive
+    static WinEventProc wp = WinCb;
+    static IntPtr hMouse = IntPtr.Zero, hWinEv = IntPtr.Zero;
+    static int lastClick, lastWin, lastClose;
+    static IntPtr lastZoomWnd = IntPtr.Zero;
+    static bool lastZoom = false;
+    static IntPtr[] recentFg = new IntPtr[6];   // windows the user actually used
+    static int fgIdx = 0;
+
+    [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int id, MouseProc fn, IntPtr mod, uint tid);
+    [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int code, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint evMin, uint evMax, IntPtr mod, WinEventProc fn, uint pid, uint tid, uint flags);
+    [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string name);
+    [DllImport("winmm.dll")]   static extern bool PlaySound(string name, IntPtr mod, uint flags);
+    [DllImport("user32.dll")]  static extern bool IsZoomed(IntPtr h);
+    [DllImport("user32.dll")]  static extern int GetWindowTextLength(IntPtr h);
+    [DllImport("user32.dll")]  static extern IntPtr GetForegroundWindow();
+
+    static void Play(string f, ref int last, int cooldown) {
+        if (Muted) return;
+        int now = Environment.TickCount;
+        if (now - last < cooldown) return;
+        last = now;
+        PlaySound(Path.Combine(SndDir, f), IntPtr.Zero, 0x20001);  // FILENAME|ASYNC
+    }
+    static IntPtr MouseCb(int code, IntPtr w, IntPtr l) {
+        if (code >= 0 && Clicks && (int)w == 0x201)                 // WM_LBUTTONDOWN
+            Play("smb_kick.wav", ref lastClick, 120);
+        return CallNextHookEx(hMouse, code, w, l);
+    }
+    static void WinCb(IntPtr hook, uint ev, IntPtr hwnd, int idObj, int idChild, uint thread, uint time) {
+        if (!WinSounds || idObj != 0) return;
+        switch (ev) {
+            case 0x0003:                                                        // SYSTEM_FOREGROUND
+                if (GetWindowTextLength(hwnd) > 0) { recentFg[fgIdx] = hwnd; fgIdx = (fgIdx + 1) % 6; }
+                break;
+            case 0x0016: Play("smb_pipe.wav",       ref lastWin, 250); break;   // MINIMIZESTART
+            case 0x0017: Play("smb_jump-small.wav", ref lastWin, 250); break;   // MINIMIZEEND
+            case 0x8001:                                                        // OBJECT_DESTROY
+                if (hwnd == lastZoomWnd) lastZoomWnd = IntPtr.Zero;
+                for (int i = 0; i < 6; i++)
+                    if (recentFg[i] == hwnd) {
+                        recentFg[i] = IntPtr.Zero;
+                        Play("smb_stomp.wav", ref lastClose, 300);               // window closed
+                        break;
+                    }
+                break;
+            case 0x800B:                                                        // LOCATIONCHANGE
+                IntPtr fg = GetForegroundWindow();
+                if (hwnd != fg || GetWindowTextLength(hwnd) == 0) return;
+                bool z = IsZoomed(hwnd);
+                if (hwnd != lastZoomWnd) { lastZoomWnd = hwnd; lastZoom = z; return; }
+                if (z && !lastZoom) Play("smb_jump-super.wav", ref lastWin, 400);   // maximized
+                lastZoom = z;
+                break;
+        }
+    }
+    public static void Start() {
+        if (hMouse == IntPtr.Zero)
+            hMouse = SetWindowsHookEx(14, mp, GetModuleHandle(null), 0);        // WH_MOUSE_LL
+        if (hWinEv == IntPtr.Zero)
+            hWinEv = SetWinEventHook(0x0003, 0x800B, IntPtr.Zero, wp, 0, 0, 0x2); // OUTOFCONTEXT|SKIPOWNPROCESS
+    }
+}
+"@
+
 $Base    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SndDir  = Join-Path $Base 'sounds'
 $LogoIco = Join-Path $Base 'ionity_logo.ico'
@@ -65,11 +144,17 @@ if (-not (Test-Path $WmPng)) { $WmPng = Join-Path $Base 'ionity_logo.png' }
 $SettingsFile = Join-Path $Base 'settings.json'
 
 # ---- settings ---------------------------------------------------------
-$defaults = @{ watermark = $true; opacity = 78; width = 200; margin = 16; icons = $true; quiet = $true }
+$defaults = @{ watermark = $true; opacity = 78; width = 200; margin = 16; icons = $true; quiet = $true; clicks = $true; winsnd = $true }
 $settings = @{}
 try { (Get-Content $SettingsFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value } } catch {}
 foreach ($k in $defaults.Keys) { if (-not $settings.ContainsKey($k)) { $settings[$k] = $defaults[$k] } }
 function Save-Settings { $settings | ConvertTo-Json | Set-Content $SettingsFile -Encoding UTF8 }
+
+# start the Mario Everywhere hook engine
+[IonHooks]::SndDir    = $SndDir
+[IonHooks]::Clicks    = [bool]$settings.clicks
+[IonHooks]::WinSounds = [bool]$settings.winsnd
+[IonHooks]::Start()
 
 function Play-Snd([string]$name) {
     if ($script:quietNow) { return }   # smart quiet: fullscreen app in front
@@ -208,6 +293,28 @@ $miQuiet.Add_Click({
 })
 $menu.Items.Add($miQuiet) | Out-Null
 
+$miClk = New-Object System.Windows.Forms.ToolStripMenuItem 'Click sounds (every left-click)'
+$miClk.CheckOnClick = $true
+$miClk.Checked = [bool]$settings.clicks
+$miClk.Add_Click({
+    $settings.clicks = $miClk.Checked
+    [IonHooks]::Clicks = $miClk.Checked
+    Save-Settings
+    Play-Snd 'smb_kick.wav'
+})
+$menu.Items.Add($miClk) | Out-Null
+
+$miWs = New-Object System.Windows.Forms.ToolStripMenuItem 'Window sounds (minimize / restore / maximize)'
+$miWs.CheckOnClick = $true
+$miWs.Checked = [bool]$settings.winsnd
+$miWs.Add_Click({
+    $settings.winsnd = $miWs.Checked
+    [IonHooks]::WinSounds = $miWs.Checked
+    Save-Settings
+    Play-Snd 'smb_pipe.wav'
+})
+$menu.Items.Add($miWs) | Out-Null
+
 # soundboard
 $miSb = New-Object System.Windows.Forms.ToolStripMenuItem 'Soundboard'
 Get-ChildItem $SndDir -Filter '*.wav' | Sort-Object Name | ForEach-Object {
@@ -279,11 +386,13 @@ $tick.Add_Tick({
         $fs = Test-Fullscreen
         if ($fs -ne $script:quietNow) {
             $script:quietNow = $fs
+            [IonHooks]::Muted = $fs
             if ($fs) { if ($wm.Visible) { $wm.Hide() } }
             elseif ([bool]$settings.watermark -and -not $wm.Visible) { Show-Wm }
         }
     } elseif ($script:quietNow) {
         $script:quietNow = $false
+        [IonHooks]::Muted = $false
         if ([bool]$settings.watermark -and -not $wm.Visible) { Show-Wm }
     }
     Update-Wm   # live SAST clock + focus counter
