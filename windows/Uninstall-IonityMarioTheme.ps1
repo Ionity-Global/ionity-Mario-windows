@@ -21,6 +21,10 @@ $BackupFile = Join-Path $Dest 'backup.json'
 Write-Host ''
 Write-Host '  Restoring your original Windows sounds...' -ForegroundColor Yellow
 
+# restore default desktop icons first (needs desktop.ini path from marker)
+$ri = Join-Path $Dest 'Remove-MarioIcons.ps1'
+if (Test-Path $ri) { & $ri }
+
 # ------------------------------------------------- restore event sounds
 $bk = $null
 if (Test-Path $BackupFile) { $bk = Get-Content $BackupFile -Raw | ConvertFrom-Json }

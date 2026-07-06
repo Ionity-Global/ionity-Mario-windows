@@ -6,6 +6,7 @@
 # =====================================================================
 param(
     [switch]$NoCompanion,   # skip tray app / watermark
+    [switch]$NoIcons,       # skip Mario desktop icon pack
     [switch]$Quiet,         # no pauses, no fanfare sound
     [string]$InstallDir = ''  # custom install location (default: %LOCALAPPDATA%\Ionity\MarioSoundTheme)
 )
@@ -35,17 +36,21 @@ Write-Host '  [1/5] Copying files...' -ForegroundColor Yellow
 New-Item -ItemType Directory -Force -Path $SndDir | Out-Null
 if (Test-Path (Join-Path $RepoRoot 'sounds')) {   # skipped when re-run from install dir
     Copy-Item (Join-Path $RepoRoot 'sounds\*.wav') $SndDir -Force
-    foreach ($f in 'ionity_logo.png','ionity_logo.ico') {
+    foreach ($f in 'ionity_logo.png','ionity_logo.ico','ionity_watermark.png') {
         Copy-Item (Join-Path $RepoRoot "assets\$f") $Dest -Force
     }
-    foreach ($f in 'IonityMarioCompanion.ps1','StartCompanion.vbs','Uninstall-IonityMarioTheme.ps1','Install-IonityMarioTheme.ps1') {
+    foreach ($f in 'IonityMarioCompanion.ps1','StartCompanion.vbs','Uninstall-IonityMarioTheme.ps1','Install-IonityMarioTheme.ps1','Apply-MarioIcons.ps1','Remove-MarioIcons.ps1') {
         Copy-Item (Join-Path $ScriptDir $f) $Dest -Force
+    }
+    if (Test-Path (Join-Path $RepoRoot 'icons')) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $Dest 'icons') | Out-Null
+        Copy-Item (Join-Path $RepoRoot 'icons\*.ico') (Join-Path $Dest 'icons') -Force
     }
 }
 # default settings (never overwrite user's)
 $SettingsFile = Join-Path $Dest 'settings.json'
 if (-not (Test-Path $SettingsFile)) {
-    @{ watermark = $true; opacity = 55; width = 190; margin = 16 } |
+    @{ watermark = $true; opacity = 78; width = 200; margin = 16; icons = (-not $NoIcons) } |
         ConvertTo-Json | Set-Content $SettingsFile -Encoding UTF8
 }
 
@@ -142,6 +147,12 @@ if (-not $NoCompanion) {
     Write-Host '        Tray app started - Ionity watermark bottom-right (toggle in tray).' -ForegroundColor DarkGray
 } else {
     Write-Host '  [4/5] Companion skipped (-NoCompanion).' -ForegroundColor DarkGray
+}
+
+# --------------------------------------------------------- icon pack
+if (-not $NoIcons) {
+    Write-Host '  [4b]  Applying Mario desktop icons (folders=mushrooms, drives=stars, bin=pipe)...' -ForegroundColor Yellow
+    & (Join-Path $Dest 'Apply-MarioIcons.ps1') -IconDir (Join-Path $Dest 'icons')
 }
 
 # ----------------------------------------------------------------- done
