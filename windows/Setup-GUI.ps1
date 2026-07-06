@@ -15,6 +15,23 @@ if ([string]::IsNullOrWhiteSpace($BaseDir)) {
     if ($exe -notmatch 'powershell|pwsh') { $BaseDir = Split-Path -Parent $exe }
 }
 $RepoRoot = Split-Path -Parent $BaseDir
+
+# ---- embedded payload (standalone single-file mode) -------------------
+# '@@PAYLOAD@@' is replaced at build time with a base64 zip of the theme.
+$Embedded = '@@PAYLOAD@@'
+if ($Embedded.Length -gt 100) {
+    $ext = Join-Path $env:TEMP 'IonityMarioTheme'
+    if (Test-Path $ext) { Remove-Item $ext -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $ext | Out-Null
+    $zipPath = Join-Path $ext 'payload.zip'
+    [System.IO.File]::WriteAllBytes($zipPath, [System.Convert]::FromBase64String($Embedded))
+    Expand-Archive -Path $zipPath -DestinationPath $ext -Force
+    Remove-Item $zipPath -Force
+    $RepoRoot = $ext
+    $BaseDir  = Join-Path $ext 'windows'
+}
+$Embedded = $null
+
 $SndSrc   = Join-Path $RepoRoot 'sounds'
 $LogoPng  = Join-Path $RepoRoot 'assets\ionity_logo.png'
 
@@ -260,23 +277,11 @@ $foot.SetBounds(40, 456, 500, 18)
 $form.Controls.Add($foot)
 
 $script:done = $false
-$btnGo.Add_Click({
-    if ($script:done) { $form.Close(); return }
-    $dir = $txtDir.Text.Trim()
-    if ([string]::IsNullOrWhiteSpace($dir)) { return }
-    $btnGo.Enabled = $false; $btnBrowse.Enabled = $false; $txtDir.Enabled = $false
-    $bar.Visible = $true; $bar.Style = 'Marquee'
-    $status.Text = 'Installing - warping down the pipe...'
-    Play-Snd 'smb_pipe.wav'
-    $form.Refresh()
+$script:instProc = $null
 
-    $ps1 = Join-Path $BaseDir 'Install-IonityMarioTheme.ps1'
-    $args = "-NoProfile -ExecutionPolicy Bypass -File `"$ps1`" -InstallDir `"$dir`" -Quiet"
-    if (-not $chkComp.Checked) { $args += ' -NoCompanion' }
-    $p = Start-Process powershell -ArgumentList $args -WindowStyle Hidden -Wait -PassThru
-
+function Complete-Install([int]$code, [string]$dir) {
     $bar.Style = 'Continuous'; $bar.Value = 100
-    if ($p.ExitCode -eq 0) {
+    if ($code -eq 0) {
         $status.ForeColor = $cCyan
         $status.Text = "Stage clear! Installed to $dir"
         Play-Snd 'smb_stage_clear.wav'
@@ -287,10 +292,40 @@ $btnGo.Add_Click({
         $btnGo.Enabled = $true
     } else {
         $status.ForeColor = $cRed
-        $status.Text = 'Bowser blocked the install (exit ' + $p.ExitCode + ') - try again.'
+        $status.Text = "Bowser blocked the install (exit $code) - log: %TEMP%\IonityMarioInstall.log"
         Play-Snd 'smb_bump.wav'
         $btnGo.Enabled = $true; $btnBrowse.Enabled = $true; $txtDir.Enabled = $true
     }
+}
+
+# async: poll the hidden installer so the GUI (and coins!) never freeze
+$poll = New-Object System.Windows.Forms.Timer
+$poll.Interval = 600
+$poll.Add_Tick({
+    if ($script:instProc -and $script:instProc.HasExited) {
+        $poll.Stop()
+        Complete-Install $script:instProc.ExitCode $txtDir.Text.Trim()
+        $script:instProc = $null
+    }
+})
+
+$btnGo.Add_Click({
+    if ($script:done) { $form.Close(); return }
+    $dir = $txtDir.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($dir)) { return }
+    $btnGo.Enabled = $false; $btnBrowse.Enabled = $false; $txtDir.Enabled = $false
+    $bar.Visible = $true; $bar.Style = 'Marquee'
+    $status.ForeColor = $cMuted
+    $status.Text = 'Installing - coins keep flowing while we work...'
+    Play-Snd 'smb_pipe.wav'
+
+    $ps1  = Join-Path $BaseDir 'Install-IonityMarioTheme.ps1'
+    $args = "-NoProfile -ExecutionPolicy Bypass -File `"$ps1`" -InstallDir `"$dir`" -Quiet"
+    if (-not $chkComp.Checked) { $args += ' -NoCompanion' }
+    $log = Join-Path $env:TEMP 'IonityMarioInstall.log'
+    $script:instProc = Start-Process powershell -ArgumentList $args -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput $log -RedirectStandardError "$log.err"
+    $poll.Start()
 })
 
 $btnUn.Add_Click({

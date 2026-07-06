@@ -11,6 +11,8 @@ if ($base) {
     attrib -r "$base"
     Remove-Item (Join-Path $base 'desktop.ini') -Force
 }
+Add-Type -Namespace Ion -Name Shell -MemberDefinition '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int eventId, int flags, IntPtr i1, IntPtr i2);'
+[Ion.Shell]::SHChangeNotify(0x08000000, 0x1000, [IntPtr]::Zero, [IntPtr]::Zero)
 ie4uinit.exe -show
-Stop-Process -Name explorer -Force
+if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
 Write-Host 'Windows default icons restored.'

@@ -43,7 +43,10 @@ $ini = Join-Path $base 'desktop.ini'
 attrib +s +h "$ini"
 attrib +r "$base"
 
-# --- refresh icon cache ----------------------------------------------------
+# --- refresh icon cache (no explorer kill - SHChangeNotify) -----------------
+Add-Type -Namespace Ion -Name Shell -MemberDefinition '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int eventId, int flags, IntPtr i1, IntPtr i2);'
+[Ion.Shell]::SHChangeNotify(0x08000000, 0x1000, [IntPtr]::Zero, [IntPtr]::Zero)  # SHCNE_ASSOCCHANGED
 ie4uinit.exe -show
-Stop-Process -Name explorer -Force
-Write-Host 'Mario icons applied - explorer restarted. Its-a beautiful!'
+# ensure explorer is alive (rescue), full restart only when explicitly asked
+if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
+Write-Host 'Mario icons applied. If some folders still look default, sign out/in once. Its-a beautiful!'
