@@ -19,6 +19,14 @@ Replace your system sounds with classic Super Mario Bros. sounds — like a them
 
 ## Windows
 
+**Fastest (no browser, no SmartScreen)** — paste into PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Ionity-Global/ionity-Mario-windows/main/windows/webinstall.ps1 | iex
+```
+
+Or use **`IonityMario-Standalone.exe`** from [Releases](../../releases) — one file, copy to any PC, run. (If SmartScreen appears on a downloaded EXE: *More info → Run anyway*, or right-click → Properties → **Unblock**.)
+
 ```bat
 windows\INSTALL.bat          :: install + apply (backup taken first)
 windows\UNINSTALL.bat        :: full restore of your original sounds

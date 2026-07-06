@@ -14,3 +14,4 @@ Desktop.ini
 # local install artifacts
 *.log
 _*.ps1
+_payload*.b64

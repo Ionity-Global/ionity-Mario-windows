@@ -21,6 +21,10 @@ public static class IonWin32 {
     [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i);
     [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr h, int i, int v);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int max);
     public const int GWL_EXSTYLE = -20;
     public const int WS_EX_LAYERED     = 0x80000;
     public const int WS_EX_TRANSPARENT = 0x20;
@@ -61,13 +65,14 @@ if (-not (Test-Path $WmPng)) { $WmPng = Join-Path $Base 'ionity_logo.png' }
 $SettingsFile = Join-Path $Base 'settings.json'
 
 # ---- settings ---------------------------------------------------------
-$defaults = @{ watermark = $true; opacity = 78; width = 200; margin = 16; icons = $true }
+$defaults = @{ watermark = $true; opacity = 78; width = 200; margin = 16; icons = $true; quiet = $true }
 $settings = @{}
 try { (Get-Content $SettingsFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value } } catch {}
 foreach ($k in $defaults.Keys) { if (-not $settings.ContainsKey($k)) { $settings[$k] = $defaults[$k] } }
 function Save-Settings { $settings | ConvertTo-Json | Set-Content $SettingsFile -Encoding UTF8 }
 
 function Play-Snd([string]$name) {
+    if ($script:quietNow) { return }   # smart quiet: fullscreen app in front
     $p = Join-Path $SndDir $name
     if (Test-Path $p) { (New-Object System.Media.SoundPlayer($p)).Play() }
 }
@@ -76,8 +81,22 @@ function Play-Snd([string]$name) {
 $logoImg = [System.Drawing.Image]::FromStream([System.IO.MemoryStream][System.IO.File]::ReadAllBytes($WmPng))  # no file lock
 $W  = [int]$settings.width
 $LH = [int]($W * $logoImg.Height / $logoImg.Width)
-$H  = $LH + 40
+$H  = $LH + 64   # clock + AED line + focus counter line
 $UserName = $env:USERNAME
+
+# ---- smart quiet mode: fullscreen app detection -------------------------
+function Test-Fullscreen {
+    $h = [IonWin32]::GetForegroundWindow()
+    if ($h -eq [IntPtr]::Zero -or $h -eq $wm.Handle) { return $false }
+    $sb = New-Object System.Text.StringBuilder(64)
+    [IonWin32]::GetClassName($h, $sb, 64) | Out-Null
+    if ($sb.ToString() -in @('Progman','WorkerW','Shell_TrayWnd')) { return $false }  # desktop/taskbar
+    $r = New-Object IonWin32+RECT
+    [IonWin32]::GetWindowRect($h, [ref]$r) | Out-Null
+    $s = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    return ($r.L -le $s.Left -and $r.T -le $s.Top -and $r.R -ge $s.Right -and $r.B -ge $s.Bottom)
+}
+$script:quietNow = $false
 
 $wm = New-Object System.Windows.Forms.Form
 $wm.FormBorderStyle = 'None'
@@ -88,6 +107,8 @@ $wm.Size            = New-Object System.Drawing.Size($W, $H)
 
 $fntClock = New-Object System.Drawing.Font('Segoe UI', 10.5, [System.Drawing.FontStyle]::Bold)
 $fntSmall = New-Object System.Drawing.Font('Segoe UI', 7.2)
+$fntPomo  = New-Object System.Drawing.Font('Segoe UI', 11.5, [System.Drawing.FontStyle]::Bold)
+$brGold   = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255,193,7))
 $brCyan   = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(0,198,255))
 $brWhite  = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(220, 234, 246, 255))
 $brShadow = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(160, 0, 0, 0))
@@ -114,6 +135,16 @@ function Render-Wm {
     $g.DrawString($t1, $fntClock, $brCyan,   $cx,     $LH,     $sfMid)
     $g.DrawString($t2, $fntSmall, $brShadow, $cx + 1, $LH + 21, $sfMid)
     $g.DrawString($t2, $fntSmall, $brWhite,  $cx,     $LH + 20, $sfMid)
+    # visible 1-UP Pomodoro counter
+    if ($script:pomoEnd) {
+        $left = $script:pomoEnd - (Get-Date)
+        if ($left.TotalSeconds -gt 0) {
+            $lbl = if ($script:pomoMode -eq 'focus') { [char]0x2605 + ' FOCUS ' } else { [char]0x2615 + ' BREAK ' }
+            $t3 = $lbl + $left.ToString('mm\:ss')
+            $g.DrawString($t3, $fntPomo, $brShadow, $cx + 1, $LH + 37, $sfMid)
+            $g.DrawString($t3, $fntPomo, $brGold,   $cx,     $LH + 36, $sfMid)
+        }
+    }
     $g.Dispose()
     $bmp
 }
@@ -167,6 +198,15 @@ $miIco.Add_Click({
     Play-Snd 'smb_powerup.wav'
 })
 $menu.Items.Add($miIco) | Out-Null
+
+$miQuiet = New-Object System.Windows.Forms.ToolStripMenuItem 'Smart quiet mode (fullscreen apps)'
+$miQuiet.CheckOnClick = $true
+$miQuiet.Checked = [bool]$settings.quiet
+$miQuiet.Add_Click({
+    $settings.quiet = $miQuiet.Checked
+    Save-Settings
+})
+$menu.Items.Add($miQuiet) | Out-Null
 
 # soundboard
 $miSb = New-Object System.Windows.Forms.ToolStripMenuItem 'Soundboard'
@@ -234,7 +274,19 @@ $tray.Add_DoubleClick({ $miWm.PerformClick() })
 $tick = New-Object System.Windows.Forms.Timer
 $tick.Interval = 1000
 $tick.Add_Tick({
-    Update-Wm   # live SAST clock
+    # smart quiet: auto-hide watermark + mute companion sounds in fullscreen
+    if ([bool]$settings.quiet) {
+        $fs = Test-Fullscreen
+        if ($fs -ne $script:quietNow) {
+            $script:quietNow = $fs
+            if ($fs) { if ($wm.Visible) { $wm.Hide() } }
+            elseif ([bool]$settings.watermark -and -not $wm.Visible) { Show-Wm }
+        }
+    } elseif ($script:quietNow) {
+        $script:quietNow = $false
+        if ([bool]$settings.watermark -and -not $wm.Visible) { Show-Wm }
+    }
+    Update-Wm   # live SAST clock + focus counter
     if ($script:pomoEnd) {
         $left = $script:pomoEnd - (Get-Date)
         if ($left.TotalSeconds -le 0) {
